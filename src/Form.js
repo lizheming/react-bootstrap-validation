@@ -36,7 +36,7 @@ export default class Form extends InputContainer {
         super.registerInput(input);
 
         if (typeof input.props.validate === 'string') {
-            this._validators[input.props.name] = this._compileValidationRules(input, input.props.validate);
+            this._validators[input.props.name] = this._compileValidationRules(input, input.props.validate, input.props.filter);
         }
     }
 
@@ -244,33 +244,41 @@ export default class Form extends InputContainer {
         };
     }
 
-    _compileValidationRules(input, ruleProp) {
-        let _temp = {}, _tempRule;
-        _tempRule = ruleProp.replace(/{.*?}/g, (text, index) => {
-          let _t = `$${index}`;
-          _temp[_t] = text;
-          return _t;
-        });
+    _compileValidationRules(input, ruleProp, filterProp) {
+        function parseText(text) {
+          let _temp = {}, _tempRule;
+          _tempRule = text.replace(/{.*?}/g, (t, i) => {
+            let _t = `$${i}`;
+            _temp[_t] = t;
+            return _t;
+          });
 
-        let rules = _tempRule.split(',').map(rule => {
+          return _tempRule.split(',').map( rule => {
             let params = rule.split(':');
             let name = params.shift();
             let inverse = name[0] === '!';
 
-            if (inverse) {
-                name = name.substr(1);
+            if( inverse ) {
+              name = name.substr(1);
             }
 
-            params = params.map(p => {
-              return eval(`(${_temp[p]})`) || p;
-            });
+            params = params.map(p => eval(`(${_temp[p]})`) || p);
             return { name, inverse, params };
-        });
+          });
+        }
+        let rules = parseText(ruleProp), filters = parseText(filterProp);
 
         let validator = (input.props && input.props.type) === 'file' ? FileValidator : Validator;
 
         return val => {
             let result = true;
+            val = filters.reduce( (value, filter) => {
+              if (typeof validator[filter.name] !== 'function') {
+                throw new Error(`Invalid input sanitizer "${filter.name}"`);
+              }
+
+              return validator[filter.name](val, ...filter.params);
+            }, val );
 
             rules.forEach(rule => {
                 if (typeof validator[rule.name] !== 'function') {
