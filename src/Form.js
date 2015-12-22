@@ -245,7 +245,14 @@ export default class Form extends InputContainer {
     }
 
     _compileValidationRules(input, ruleProp) {
-        let rules = ruleProp.split(',').map(rule => {
+        let _temp = {}, _tempRule;
+        _tempRule = ruleProp.replace(/{.*?}/g, (text, index) => {
+          let _t = `$${index}`;
+          _temp[_t] = text;
+          return _t;
+        });
+
+        let rules = _tempRule.split(',').map(rule => {
             let params = rule.split(':');
             let name = params.shift();
             let inverse = name[0] === '!';
@@ -254,6 +261,9 @@ export default class Form extends InputContainer {
                 name = name.substr(1);
             }
 
+            params = params.map(p => {
+              return eval(`(${_temp[p]})`) || p;
+            });
             return { name, inverse, params };
         });
 
